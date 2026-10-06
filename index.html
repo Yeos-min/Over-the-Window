@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#ffffff"><meta name="description" content="바람 베젤과 음악으로 빗물의 흐름을 조절하세요.">
+  <title>유리 너머 — Rain on Glass</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23ffffff'/%3E%3Cpath d='M16 5C13 11 8 16 8 21a8 8 0 0 0 16 0c0-5-5-10-8-16' fill='%23303236'/%3E%3C/svg%3E">
+  <link rel="preload" href="./assets/fonts/PretendardVariable.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main id="window" aria-label="빗방울 인터랙션">
+    <canvas id="glass" tabindex="0" aria-label="빗방울 창문. 바람 베젤로 물길의 방향을 조절하세요."></canvas>
+    <div class="vignette" aria-hidden="true"></div>
+    <div id="background-media" hidden aria-hidden="true"></div>
+    <div id="menu-drawer" class="menu-drawer" data-open="false">
+      <button id="menu-toggle" class="menu-tab" type="button" aria-label="메뉴 열기" aria-controls="menu-controls" aria-expanded="false">
+        <span class="menu-tab-icon" aria-hidden="true"></span>
+        <span class="menu-tab-text" aria-hidden="true">메뉴</span>
+      </button>
+    <aside class="control-rail" id="menu-controls" aria-label="빗방울 설정" aria-hidden="true" inert>
+      <section class="action-panel" aria-label="창문 조작">
+      <div class="actions"><button id="pause" aria-pressed="false">잠시 멈추기</button><button id="reset">다시 맺히기</button><button id="reveal" aria-pressed="false">풍경 보기</button><button id="defog" disabled>김서림 없애기</button></div>
+      <p id="status" role="status">유리 위에 빗방울을 맺는 중…</p>
+      <button id="background-play" class="background-retry" type="button" hidden>배경 영상 재생</button>
+      </section>
+      <div class="knob-section">
+      <div class="knob-panels">
+      <section class="blur-panel" aria-labelledby="blur-label">
+        <h2 id="blur-label">배경 블러</h2>
+        <div id="background-blur" class="bezel" role="slider" tabindex="0" aria-labelledby="blur-label" aria-describedby="blur-help" aria-valuemin="0" aria-valuemax="24" aria-valuenow="0" aria-valuetext="0 px" aria-disabled="true">
+          <span class="bezel-pointer" aria-hidden="true"></span>
+          <span class="bezel-face" aria-hidden="true"><span id="background-blur-value">0</span><small>px</small></span>
+        </div>
+        <p id="blur-help">0–24 px</p>
+      </section>
+      <section class="blur-panel wind-panel" aria-labelledby="wind-direction-label">
+        <h2 id="wind-direction-label">바람 방향</h2>
+        <div id="wind-direction" class="bezel" role="slider" tabindex="0" aria-labelledby="wind-direction-label" aria-describedby="wind-direction-help" aria-valuemin="-90" aria-valuemax="90" aria-valuenow="0" aria-valuetext="중립 · 0도" aria-disabled="true">
+          <span class="bezel-pointer" aria-hidden="true"></span>
+          <span class="bezel-face" aria-hidden="true"><span id="wind-direction-value">0</span><small>°</small></span>
+        </div>
+        <p id="wind-direction-help">좌 −90° · 우 90°</p>
+      </section>
+      <section class="blur-panel wind-panel" aria-labelledby="wind-strength-label">
+        <h2 id="wind-strength-label">바람 세기</h2>
+        <div id="wind-strength" class="bezel" role="slider" tabindex="0" aria-labelledby="wind-strength-label" aria-describedby="wind-strength-help" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="무풍 · 0%" aria-disabled="true">
+          <span class="bezel-pointer" aria-hidden="true"></span>
+          <span class="bezel-face" aria-hidden="true"><span id="wind-strength-value">0</span><small>%</small></span>
+        </div>
+        <p id="wind-strength-help">무풍 0–100%</p>
+      </section>
+      </div>
+      <p class="knob-help">방향 0°는 위쪽 기준 · 노브/방향키로 조절</p>
+      </div>
+      <section class="music-panel">
+        <div class="mass-debug rain-sound-test">
+          <button id="rain-sound-live" class="background-retry" type="button" aria-pressed="false">빗소리 켜기</button>
+          <p id="rain-sound-live-status" role="status">새 방울이 생길 때 · 작은 크기 낮게 / 큰 크기 높게</p>
+          <div class="rain-sound-buttons">
+            <button id="rain-sound-test" class="background-retry" type="button" aria-pressed="false">1 · 최저음 듣기</button>
+            <button id="rain-sound-higher" class="background-retry" type="button" aria-pressed="false">2 · 중간음 듣기</button>
+            <button id="rain-sound-high" class="background-retry" type="button" aria-pressed="false">3 · 높은음 듣기</button>
+          </div>
+          <label for="rain-sound-volume">빗소리 음량 <output id="rain-sound-volume-value" for="rain-sound-volume">35%</output></label>
+          <input id="rain-sound-volume" type="range" min="0" max="100" step="1" value="35" aria-describedby="rain-sound-status">
+          <p id="rain-sound-status" role="status">1 최저음 작게 · 2 중간음 · 3 높은음 크게</p>
+        </div>
+        <div class="mass-debug">
+          <label for="rain-sound-limit">동시 빗소리 수 · 디버그 <output id="rain-sound-limit-value" for="rain-sound-limit">12개</output></label>
+          <input id="rain-sound-limit" type="range" min="1" max="128" step="1" value="12" aria-describedby="rain-sound-limit-help">
+          <p id="rain-sound-limit-help">1–128개 · 드문 음 우선 · 소리 꼬리는 짧게 교체 · 음량 자동 보정</p>
+        </div>
+        <div class="mass-debug">
+          <label for="mass-scale">질량 배율 · 디버그 <output id="mass-scale-value" for="mass-scale">×0.10</output></label>
+          <input id="mass-scale" type="range" min="0.01" max="1" step="0.01" value="0.10" aria-describedby="mass-scale-help" disabled>
+          <p id="mass-scale-help">작게 하면 천천히 · 1.00은 이전 질량</p>
+        </div>
+        <div class="mass-debug">
+          <label for="path-noise">노이즈 강도 · 디버그 <output id="path-noise-value" for="path-noise">×1.0</output></label>
+          <input id="path-noise" type="range" min="0" max="4" step="0.1" value="1" aria-describedby="path-noise-help" disabled>
+          <p id="path-noise-help">0은 꺼짐 · 높이면 좌우 굴곡이 커져요</p>
+        </div>
+        <button id="music-toggle" class="music-toggle" aria-expanded="false" aria-controls="music-content">음악에 반응하기</button>
+        <p id="performance-status" class="performance-status">성능 측정 중…</p>
+        <div id="music-content" class="music-content" inert>
+          <div class="music-content-inner">
+        <p class="music-guide">유튜브·Spotify는 탭 오디오, 다른 앱은 지원되는 시스템 오디오를 공유하세요. 화면 공유 권한은 요청하지만 영상·마이크는 쓰지 않고, 녹음·저장·전송 없이 소리만 분석해요.</p>
+        <div class="music-controls"><button id="music" aria-pressed="false">음악 연결</button><label>반응 강도 <input id="sensitivity" type="range" min="0.3" max="3" step="0.1" value="1" aria-label="음악 반응 강도"></label></div>
+        <p id="music-status" role="status">연결 전 · 소리를 공유하려면 음악 연결을 누르세요.</p>
+        <div class="music-meters"><label>음량 → 생성량 <meter id="volume-meter" min="0" max="1" value="0"></meter></label><label>고음 → 속도 <meter id="treble-meter" min="0" max="1" value="0"></meter></label></div>
+          </div>
+        </div>
+      </section>
+    </aside>
+    </div>
+  </main>
+  <noscript>이 인터랙션에는 JavaScript가 필요합니다.</noscript>
+  <script type="module" src="./src/index.js"></script>
+</body>
+</html>
