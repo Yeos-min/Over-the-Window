@@ -9,25 +9,31 @@ import {Condensation} from './condensation.js';
 import {blurValue} from './background-blur.js';
 import {SceneTextures} from './scene-textures.js';
 import {VideoBackground} from './video-background.js';
+import {ScreenShare} from './screen-share.js';
 import {BlurBezel} from './blur-bezel.js';
 import {initMusicPanel} from './music-panel.js';
 import {initMenuDrawer} from './menu-drawer.js';
 import {initWindControls} from './wind-controls.js';
 import {initMassControl} from './mass-control.js';
-import {initNoiseControl} from './noise-control.js';
+import {initNoiseControl,initTurnDragControl} from './noise-control.js';
 import {RAIN_SOUND_VOICES} from './rain-sound.js';
 import {RainBirthSound} from './rain-birth-sound.js';
 import {FrameStats} from './frame-stats.js';
+import {initFingerDrawing} from './finger-drawing.js';
+import {initRainControl} from './rain-intensity.js';
 
 const $=s=>document.querySelector(s),canvas=$('#glass'),surface=$('#window'),status=$('#status');
 const menu=initMenuDrawer($('#menu-toggle'),$('#menu-controls'),$('#menu-drawer'));
 initMusicPanel($('#music-toggle'),$('#music-content'));
 const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+// Keep collision work at 30Hz; render and video retain their own refresh rates.
+const simulationStep=1/30;
 const frameStats=new FrameStats($('#performance-status'));
 const parallax=new Parallax(!reduced);
 const condensation=new Condensation();
 const rain=new HeartfeltRain();
 let paused=false,revealed=false,raf=0,last=0,acc=0,renderer,physics,map,video,videoReady=false,backgroundFailed=false;
+let screenShare,drawingMode=true;
 const music=new MusicInput((connected,message,pending=false)=>{
   $('#music').setAttribute('aria-pressed',String(connected));
   $('#music').textContent=pending?'연결 취소':connected?'음악 연결 해제':'음악 연결';
@@ -57,9 +63,15 @@ $('#rain-sound-limit').addEventListener('input',event=>{
   const value=rainSound.setVoiceLimit(Number(event.target.value));event.target.value=String(value);
   $('#rain-sound-limit-value').textContent=`${value}개`;event.target.setAttribute('aria-valuetext',`최대 ${value}개 동시 재생`);
 });
+$('#rain-sound-auto-gain').addEventListener('click',event=>{
+  const enabled=rainSound.setAutoGain(!rainSound.autoGain);
+  event.currentTarget.setAttribute('aria-pressed',String(enabled));
+  event.currentTarget.textContent=`음량 자동 보정 ${enabled?'ON':'OFF'}`;
+  $('#rain-sound-auto-gain-help').textContent=enabled?'12개를 넘게 겹치면 전체 빗소리를 줄여요.':'겹치는 개수에 따른 감쇠 없이 재생해요.';
+});
 $('#music').addEventListener('click',()=>music.toggle());
 $('#sensitivity').addEventListener('input',e=>{music.sensitivity=Number(e.target.value);});
-window.addEventListener('pagehide',event=>{music.stop(false);rainSound.dispose();if(event.persisted)video?.pause();else video?.dispose();});
+window.addEventListener('pagehide',event=>{screenShare?.stop(false);music.stop(false);rainSound.dispose();if(event.persisted)video?.pause();else video?.dispose();});
 window.addEventListener('pageshow',event=>{if(event.persisted)syncVideoPlayback();});
 const say=text=>{if(status.textContent!==text)status.textContent=text;};
 const fetchText=async url=>{const response=await fetch(url);if(!response.ok)throw new Error(url);return response.text();};
@@ -83,6 +95,7 @@ try{
   const blurControl=new BlurBezel($('#background-blur'),$('#background-blur-value'),()=>{backgroundDirty=true;},{initialValue:4});
   renderer=new RainRenderer(canvas,vert,frag);document.body.dataset.renderer='webgl';
   physics=new CodropsPhysics(surface.clientWidth,surface.clientHeight);physics.active=!reduced;map=new WaterMap(dropAlpha,dropColor,{surfaceDensity:.12});
+  map.physics=physics;
   physics.onImpact=drop=>rainSound.impact(drop,physics.height);
   initWindControls($('#wind-direction'),$('#wind-direction-value'),$('#wind-strength'),$('#wind-strength-value'),value=>{physics.windTarget=value;});
   function startVideo(){
@@ -122,11 +135,47 @@ try{
   function resize(force=false){
     const w=surface.clientWidth,h=surface.clientHeight;
     if(!force&&map.width===w&&map.height===h)return;
+    fingerDrawing.cancel();
     parallax.reset();
     physics.resize(w,h);map.resize(w,h);renderer.resize(w,h);scene(w,h);paint();
   }
+  const fingerDrawing=initFingerDrawing(canvas,{
+    enabled:()=>drawingMode&&!revealed&&document.body.dataset.renderer==='webgl',
+    project:(...args)=>parallax.unproject(...args),onStroke:(...args)=>map.wipe(...args)
+  });
+  screenShare=new ScreenShare({
+    onConnected:source=>{
+      video?.dispose();$('#background-media').replaceChildren(source.video);video=source;videoReady=true;
+      currentScene=source.canvas;backgroundDirty=true;sceneTextures.maxEdge=1920;
+      parallax.enabled=false;parallax.reset();document.body.dataset.background='shared';
+      $('#background-play').hidden=true;syncVideoPlayback();paint();
+    },
+    onStopped:()=>{
+      fingerDrawing.cancel();
+      parallax.enabled=!reduced;parallax.reset();sceneTextures.maxEdge=1280;startVideo();
+    },
+    onState:(state,message)=>{
+      const connecting=state==='requesting'||state==='loading';
+      $('#share-background').disabled=state==='unsupported';
+      $('#share-background').textContent=connecting?'배경 연결 취소':state==='active'?'배경 화면 공유 중':'화면 공유로 배경 바꾸기';
+      $('#share-background').setAttribute('aria-pressed',String(connecting||state==='active'));
+      $('#share-stop').hidden=state!=='active';$('#share-status').textContent=message;
+    }
+  });
+  $('#share-background').addEventListener('click',()=>{if(screenShare.pending)screenShare.stop();else screenShare.start();});
+  $('#share-stop').addEventListener('click',()=>screenShare.stop());
+  function toggleDrawing(){
+    drawingMode=!drawingMode;fingerDrawing.cancel();document.body.dataset.drawing=String(drawingMode);
+    $('#drawing-mode').setAttribute('aria-pressed',String(drawingMode));
+    $('#drawing-mode').textContent=`그리기 모드 ${drawingMode?'ON':'OFF'} · G`;
+  }
+  $('#drawing-mode').addEventListener('click',toggleDrawing);
+  document.addEventListener('keydown',event=>{
+    if(event.code!=='KeyG'||event.repeat||event.isComposing||event.ctrlKey||event.altKey||event.metaKey||event.target.closest('input,textarea,select,[contenteditable]'))return;
+    event.preventDefault();toggleDrawing();
+  });
   canvas.addEventListener('pointermove',e=>{
-    if(paused||e.pointerType!=='mouse'&&e.pointerType!=='pen')return;
+    if(paused||fingerDrawing.drawing||e.pointerType!=='mouse'&&e.pointerType!=='pen')return;
     const rect=canvas.getBoundingClientRect();
     parallax.move(e.clientX-rect.left,e.clientY-rect.top,rect.width,rect.height);
   });
@@ -141,6 +190,7 @@ try{
     syncVideoPlayback();
   });
   $('#reset').addEventListener('click',()=>{
+    fingerDrawing.cancel();
     if(rainSound.playing)rainSound.stop();
     rainSound.clearHits();
     condensation.reset();
@@ -151,6 +201,7 @@ try{
     say('음악 없이도 흘러요. 바람 베젤로 물길의 방향을 조절해보세요.');paint();
   });
   $('#reveal').addEventListener('click',()=>{
+    fingerDrawing.cancel();
     revealed=!revealed;surface.classList.toggle('revealed',revealed);$('#reveal').setAttribute('aria-pressed',String(revealed));
     if(revealed)rainSound.clearHits();
     $('#reveal').textContent=revealed?'유리로 돌아가기':'풍경 보기';
@@ -177,20 +228,21 @@ try{
     const dt=last?Math.min((now-last)/1000,.08):0;last=now;
     // An explicit defog action can finish while rain is paused; accumulation cannot.
     if(condensation.clearing||(!paused&&!revealed))condensation.update(dt);
-    if(!paused)parallax.update(dt);
+    if(!paused&&!fingerDrawing.drawing)parallax.update(dt);
     physics.music=music.sample(dt);
     $('#volume-meter').value=physics.music.level;
     $('#treble-meter').value=physics.music.treble;
     if(!paused&&!revealed){
-      acc+=dt;while(acc>=1/60){
+      // Bound catch-up work so a busy frame cannot create a simulation backlog.
+      acc=Math.min(acc+dt,simulationStep*2);while(acc>=simulationStep){
         // Pointer movement affects parallax only; wind controls lateral rain flow.
         let stamp=performance.now();
-        if(!reduced){rain.update(1/60,physics.music,physics.wind);map.updateRain(rain,physics);}
+        if(!reduced){rain.update(simulationStep,physics.music,physics.wind);map.updateRain(rain,physics);}
         frameStats.add('field',performance.now()-stamp);stamp=performance.now();
-        physics.step(1/60,0,(...args)=>map.trail(...args),(...args)=>map.absorb(...args),(...args)=>map.releaseWind(...args));
+        physics.step(simulationStep,0,(...args)=>map.trail(...args),(...args)=>map.absorb(...args),(...args)=>map.releaseWind(...args));
         map.dirty=true;
         frameStats.add('physics',performance.now()-stamp);
-        acc-=1/60;
+        acc-=simulationStep;
       }
       let stamp=performance.now();map.decay(dt);frameStats.add('decay',performance.now()-stamp);stamp=performance.now();
       if(!reduced)map.condense(dt);frameStats.add('births',performance.now()-stamp);
@@ -200,8 +252,11 @@ try{
     paint(now);frameStats.frame(now,start,{voices:rainSound.worklet?rainSound.audioStats.active:rainSound.hits.size,voiceCounts:rainSound.worklet?rainSound.audioStats.voices:undefined,audio:rainSound.worklet?'worklet':'nodes',width:canvas.width,height:canvas.height});raf=requestAnimationFrame(frame);
   }
   resize();initMassControl($('#mass-scale'),$('#mass-scale-value'),physics,map);
-  initNoiseControl($('#path-noise'),$('#path-noise-value'),physics);new ResizeObserver(()=>resize()).observe(surface);
+  initRainControl($('#rain-intensity'),$('#rain-intensity-value'),physics);
+  initNoiseControl($('#path-noise'),$('#path-noise-value'),physics);
+  initTurnDragControl($('#turn-drag'),$('#turn-drag-value'),physics);new ResizeObserver(()=>resize()).observe(surface);
   document.addEventListener('visibilitychange',()=>{
+    fingerDrawing.cancel();
     if(document.hidden&&rainSound.playing)rainSound.stop();
     if(document.hidden)rainSound.clearHits();
     cancelAnimationFrame(raf);last=0;acc=0;frameStats.reset();
@@ -209,7 +264,7 @@ try{
     syncVideoPlayback();
     if(!document.hidden)raf=requestAnimationFrame(frame);
   });
-  canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();cancelAnimationFrame(raf);rainSound.clearHits();video?.pause();say('화면 연결이 중단됐어요. 복구를 기다리는 중입니다.');});
+  canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();fingerDrawing.cancel();cancelAnimationFrame(raf);rainSound.clearHits();video?.pause();say('화면 연결이 중단됐어요. 복구를 기다리는 중입니다.');});
   canvas.addEventListener('webglcontextrestored',()=>{
     try{renderer=new RainRenderer(canvas,vert,frag);resize(true);syncVideoPlayback();last=0;acc=0;cancelAnimationFrame(raf);raf=requestAnimationFrame(frame);say('화면이 복구됐어요.');}catch(error){fallback(error);}
   });
@@ -218,6 +273,7 @@ try{
 }catch(error){fallback(error);}
 
 function fallback(error){
+  screenShare?.stop(false);
   rainSound.dispose();
   music.stop();
   video?.dispose();
@@ -231,5 +287,7 @@ function fallback(error){
   $('#wind-strength').setAttribute('aria-disabled','true');
   $('#mass-scale').disabled=true;
   $('#path-noise').disabled=true;
+  $('#turn-drag').disabled=true;
+  $('#rain-intensity').disabled=true;
   $('#rain-sound-limit').disabled=true;
 }

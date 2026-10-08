@@ -23,4 +23,8 @@ export class Parallax {
     return {x:((x/width-.5)+this.x*.006*this.strength)*this.glassScale*width+width*.5,
       y:((y/height-.5)+this.y*.006*this.strength)*this.glassScale*height+height*.5};
   }
+  unproject(x,y,width,height){
+    return {x:((x/width-.5)/this.glassScale-this.x*.006*this.strength+.5)*width,
+      y:((y/height-.5)/this.glassScale-this.y*.006*this.strength+.5)*height,scale:this.glassScale};
+  }
 }

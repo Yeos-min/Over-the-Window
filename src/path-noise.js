@@ -9,13 +9,13 @@ export function pathNoise(position,seed){
   const fade=t*t*t*(t*(t*6-15)+10),a=gradient(cell,seed)*t,b=gradient(cell+1,seed)*(t-1);
   return 2*(a+(b-a)*fade);
 }
-export function pathVelocity(drop,dt,strength=1){
+export function pathVelocity(drop,dt,strength=1,speed=drop.vy){
   // Distance-based sampling keeps the bends attached to the path when speed changes.
   drop.pathDistance+=drop.vy*dt;
   if(strength===0){drop.pathVx=0;return 0;}
   const p=drop.pathDistance/90+drop.pathPhase;
   const noise=.75*pathNoise(p,drop.pathSeed)+.25*pathNoise(p*2.1,drop.pathSeed^0x9e3779b9);
-  const target=noise*Math.min(60,drop.vy*.3)*strength;
+  const target=noise*Math.min(60,speed*.3)*strength;
   drop.pathVx+=(target-drop.pathVx)*(1-Math.exp(-dt/.18));
   return drop.pathVx;
 }

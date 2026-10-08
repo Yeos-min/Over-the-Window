@@ -4,7 +4,7 @@ import { stat } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 const root = fileURLToPath(new URL('.', import.meta.url));
-const types = {'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.png':'image/png','.jpg':'image/jpeg','.avif':'image/avif','.webp':'image/webp','.mp4':'video/mp4','.woff2':'font/woff2','.vert':'text/plain','.frag':'text/plain','.glsl':'text/plain'};
+const types = {'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.avif':'image/avif','.webp':'image/webp','.mp4':'video/mp4','.woff2':'font/woff2','.vert':'text/plain','.frag':'text/plain','.glsl':'text/plain'};
 export function byteRange(header,size){
   const match=/^bytes=(\d*)-(\d*)$/.exec(header||'');
   if(!match||!size||(!match[1]&&!match[2]))return null;

@@ -100,7 +100,7 @@ test('condensation stops at target and refills absorbed space without a delayed 
   const first=map.beads.cells.values().next().value[0];
   const absorbed=map.absorb(first.x,first.y,1);assert.ok(absorbed.length>=1);
   const remaining=map.beads.count;assert.equal(remaining,target-absorbed.length);
-  map.condense(.001);
+  map.beadArrival=1;map.condense(.001);
   assert.equal(map.beads.count,remaining);assert.equal(calls.draw.length,drawn);
   assert.ok(map.counter>0&&map.counter<1);
   map.condense(100);

@@ -22,7 +22,7 @@ export class RainBirthSound extends RainSoundTest{
   constructor(onState,options={}){
     super(onState,options);this.onEnabled=options.onEnabled||(()=>{});
     this.enabled=false;this.pending=false;this.liveGeneration=0;this.hits=new Set();this.buffers=new Map();this.heard=new WeakMap();
-    this.voiceLimit=12;this.liveGain=null;this.liveContext=null;this.retiringHits=new Set();
+    this.voiceLimit=12;this.autoGain=true;this.liveGain=null;this.liveContext=null;this.retiringHits=new Set();
     this.worklet=null;this.workletContext=null;this.pendingBirths=[];this.audioStats={active:0,tails:0,started:0,rejected:0,voices:[0,0,0]};
     this.createWorkletNode=options.createWorkletNode??(typeof AudioWorkletNode==='function'?context=>new AudioWorkletNode(context,'rain-audio',{numberOfInputs:0,numberOfOutputs:1,outputChannelCount:[1]}):null);
     this.boundsHeight=0;this.thresholds=[];
@@ -31,6 +31,10 @@ export class RainBirthSound extends RainSoundTest{
     this.voiceLimit=Math.max(1,Math.min(128,Math.round(Number.isFinite(value)?value:12)));
     this.worklet?.port.postMessage({type:'limit',value:this.voiceLimit});
     return this.voiceLimit;
+  }
+  setAutoGain(value){
+    this.autoGain=Boolean(value);this.worklet?.port.postMessage({type:'autoGain',value:this.autoGain});
+    this.balanceHits();return this.autoGain;
   }
   classify(radius,height){
     if(height!==this.boundsHeight){
@@ -50,14 +54,15 @@ export class RainBirthSound extends RainSoundTest{
       for(const voice of ['low','higher','high'])for(let seed=0;seed<8;seed++)buffers.push(glassImpact(context.sampleRate,{size:.5,seed:71+seed,voice}));
       node.port.onmessage=event=>{this.audioStats=event.data;};node.connect(this.gain);
       node.port.postMessage({type:'bank',buffers,gains:['low','higher','high'].map(voice=>.2*RAIN_SOUND_VOICES[voice].volume)},buffers.map(pcm=>pcm.buffer));
-      node.port.postMessage({type:'limit',value:this.voiceLimit});this.worklet=node;this.workletContext=context;
+      node.port.postMessage({type:'limit',value:this.voiceLimit});
+      node.port.postMessage({type:'autoGain',value:this.autoGain});this.worklet=node;this.workletContext=context;
     }catch{this.workletContext=this.context;/* The existing node backend remains available. */}
   }
   flush(){
     if(!this.worklet||!this.pendingBirths.length)return;
     this.worklet.port.postMessage({type:'births',ids:this.pendingBirths});this.pendingBirths=[];
   }
-  balanceHits(){if(this.liveGain)this.liveGain.gain.value=Math.min(1,12/Math.max(1,this.hits.size+this.retiringHits.size));}
+  balanceHits(){if(this.liveGain)this.liveGain.gain.value=this.autoGain?Math.min(1,12/Math.max(1,this.hits.size+this.retiringHits.size)):1;}
   replacement(voice){
     const counts={low:0,higher:0,high:0};for(const hit of this.hits)counts[hit.voice]++;
     let candidate;

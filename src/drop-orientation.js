@@ -55,3 +55,13 @@ export function dropGeometry(d){
   const stretch=1+.65*motion;
   return {angle:d.rotation||0,shape:motion,sx:(1+(d.spreadX||0))/Math.sqrt(stretch),sy:1.08*(1+(d.spreadY||0))*stretch+(d.wobble||0)};
 }
+
+// Central body section across travel, including the sprite's quantized waist.
+// Projecting the whole elongated silhouette made bends clear an oversized ribbon.
+export function dropTrailRadius(d,dx,dy){
+  const {angle,sx,sy,shape}=dropGeometry(d),length=Math.hypot(dx,dy);
+  const nx=length?-dy/length:1,ny=length?dx/length:0;
+  const c=Math.cos(angle),s=Math.sin(angle);
+  const waist=sx*(1-.12*Math.round(shape*6)/6);
+  return d.r/Math.hypot((nx*c+ny*s)/waist,(-nx*s+ny*c)/sy);
+}

@@ -1,12 +1,13 @@
 // Fixed voice/tail storage shared by the AudioWorklet and its offline tests.
 export class RainVoiceMixer{
   constructor(rate){
-    this.rate=rate;this.limit=12;this.active=0;this.tails=0;this.frame=0;this.started=0;this.rejected=0;
+    this.rate=rate;this.limit=12;this.autoGain=true;this.active=0;this.tails=0;this.frame=0;this.started=0;this.rejected=0;
     this.counts=new Uint16Array(3);this.banks=[];this.fadeFrames=Math.round(rate*.008);this.fadeRate=Math.exp(-1/(rate*.002));
     this.slots=Array.from({length:128},()=>({id:-1,position:0,started:0,protect:0,tailId:-1,tailPosition:0,tailLeft:0,tailGain:0}));
   }
   bank(buffers,gains){this.banks=buffers.map((pcm,i)=>Float32Array.from(pcm,value=>value*gains[Math.floor(i/8)]));}
   setLimit(value){this.limit=Math.max(1,Math.min(128,Math.round(Number.isFinite(value)?value:12)));}
+  setAutoGain(value){this.autoGain=Boolean(value);}
   birth(id){
     if(!this.banks[id]||this.active>this.limit){this.rejected++;return false;}
     const voice=Math.floor(id/8);let slot;
@@ -30,7 +31,7 @@ export class RainVoiceMixer{
     return true;
   }
   process(output){
-    output.fill(0);const gain=Math.min(1,12/Math.max(1,this.active+this.tails));
+    output.fill(0);const gain=this.autoGain?Math.min(1,12/Math.max(1,this.active+this.tails)):1;
     for(const s of this.slots){
       if(s.id>=0){
         const pcm=this.banks[s.id];
