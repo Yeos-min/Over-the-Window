@@ -183,6 +183,19 @@ test('voice limit changes apply to new births while existing tails finish and de
   assert.equal(player.setVoiceLimit(NaN),12);assert.equal(player.setVoiceLimit(3.6),4);
   player.dispose();assert.equal(player.liveGain,null);
 });
+
+test('node backend automatic gain toggles existing sounds and remains off across clear and reactivation',async()=>{
+  const {player,sources}=fixture();await player.setEnabled(true);player.setVoiceLimit(24);
+  for(let i=0;i<24;i++)assert.equal(player.impact({r:8,pathSeed:i},600),true);
+  assert.equal(player.liveGain.gain.value,.5);
+  player.setAutoGain(false);assert.equal(player.liveGain.gain.value,1);
+  assert.equal(player.hits.size,24);assert.ok(sources.every(s=>!s.stopped));
+  player.setAutoGain(true);assert.equal(player.liveGain.gain.value,.5);
+  player.setAutoGain(false);player.clearHits();
+  await player.setEnabled(false);await player.setEnabled(true);
+  for(let i=0;i<24;i++)player.impact({r:8,pathSeed:i},600);
+  assert.equal(player.autoGain,false);assert.equal(player.liveGain.gain.value,1);player.dispose();
+});
 test('canceling activation prevents a late resume from enabling live playback',async()=>{
   let finish;const {player}=fixture(()=>new Promise(resolve=>{finish=resolve;}));
   const pending=player.setEnabled(true);assert.equal(player.pending,true);

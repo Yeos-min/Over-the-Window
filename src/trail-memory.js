@@ -24,13 +24,18 @@ export class TrailMemory {
   }
   clear(){this.time=0;this.times.fill(-Infinity);this.coverage.fill(0);this.present.fill(0);this.activeCount=0;this.generation++;}
   advance(dt){if(Number.isFinite(dt)&&dt>0)this.time+=dt;}
-  stamp(x0,y0,x1,y1,radius){
+  stamp(x0,y0,x1,y1,radius,endRadius=radius,roundCaps=true){
     const dx=x1-x0,dy=y1-y0,length=dx*dx+dy*dy;
-    const left=Math.max(0,Math.floor(Math.min(x0,x1)-radius-1)),right=Math.min(this.width-1,Math.ceil(Math.max(x0,x1)+radius+1));
-    const top=Math.max(0,Math.floor(Math.min(y0,y1)-radius-1)),bottom=Math.min(this.height-1,Math.ceil(Math.max(y0,y1)+radius+1));
+    const extent=Math.max(radius,endRadius),segmentLength=Math.sqrt(length);
+    const left=Math.max(0,Math.floor(Math.min(x0,x1)-extent-1)),right=Math.min(this.width-1,Math.ceil(Math.max(x0,x1)+extent+1));
+    const top=Math.max(0,Math.floor(Math.min(y0,y1)-extent-1)),bottom=Math.min(this.height-1,Math.ceil(Math.max(y0,y1)+extent+1));
     for(let y=top;y<=bottom;y++)for(let x=left;x<=right;x++){
-      const t=length?Math.max(0,Math.min(1,((x+.5-x0)*dx+(y+.5-y0)*dy)/length)):0;
-      const coverage=Math.max(0,Math.min(1,radius+.5-Math.hypot(x+.5-x0-dx*t,y+.5-y0-dy*t)));
+      const projection=length?((x+.5-x0)*dx+(y+.5-y0)*dy)/length:0;
+      // Water trails end at the current head; only finger strokes use round caps.
+      if(!roundCaps&&length&&(projection*segmentLength<-.5||(projection-1)*segmentLength>.5))continue;
+      const t=Math.max(0,Math.min(1,projection)),width=radius+(endRadius-radius)*t;
+      let coverage=Math.max(0,Math.min(1,width+.5-Math.hypot(x+.5-x0-dx*t,y+.5-y0-dy*t)));
+      if(!roundCaps&&length)coverage=Math.min(coverage,projection*segmentLength+.5,(1-projection)*segmentLength+.5);
       if(!coverage)continue;
       const i=y*this.width+x;
       this.coverage[i]=Math.max(coverage,this.coverage[i]*trailOpacity(this.time-this.times[i]));

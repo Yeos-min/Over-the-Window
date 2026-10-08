@@ -38,6 +38,17 @@ test('fixed mixer slots keep all three voices audible under dense births without
   assert.equal(m.birth(0),true);assert.equal(m.birth(16),true);assert.equal(m.active,1);assert.equal(m.counts[2],1);
 });
 
+test('automatic gain toggles during dense playback without changing active voices',()=>{
+  const m=new RainVoiceMixer(48000),block=new Float32Array(128);
+  m.bank(Array.from({length:24},()=>new Float32Array(1024).fill(.01)),[1,1,1]);m.setLimit(24);
+  for(let i=0;i<24;i++)assert.equal(m.birth(i),true);
+  m.process(block);const balanced=block[0];
+  m.setAutoGain(false);m.process(block);
+  assert.equal(block[0],balanced*2);assert.equal(m.active,24);assert.equal(m.started,24);
+  m.setAutoGain(true);m.process(block);assert.equal(block[0],balanced);
+  m.setAutoGain(false);m.clear();assert.equal(m.autoGain,false);
+});
+
 test('replacement protects fresh attacks and fades a started tail for eight milliseconds',()=>{
   const m=mixer(),block=new Float32Array(128);m.setLimit(1);m.birth(0);
   assert.equal(m.birth(1),false);
@@ -81,6 +92,14 @@ test('worklet load failure retains the working node backend',async()=>{
   const {player,sources}=workletFixture(true);await player.setEnabled(true);
   assert.equal(player.enabled,true);assert.equal(player.worklet,null);
   assert.equal(player.impact({r:8},600),true);assert.equal(sources.length,1);player.dispose();
+});
+
+test('automatic gain preference reaches a new worklet and updates without restarting playback',async()=>{
+  const {player,messages,nodes}=workletFixture();player.setAutoGain(false);await player.setEnabled(true);
+  assert.deepEqual(messages.find(m=>m.type==='autoGain'),{type:'autoGain',value:false});
+  player.setAutoGain(true);assert.deepEqual(messages.at(-1),{type:'autoGain',value:true});
+  player.setAutoGain(false);await player.setEnabled(false);await player.setEnabled(true);
+  assert.equal(player.autoGain,false);assert.equal(nodes.length,1);player.dispose();
 });
 
 test('cached birth thresholds match logarithmic classification at several screen sizes',()=>{

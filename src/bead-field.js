@@ -1,13 +1,16 @@
+import {touchesFinger} from './finger-collision.js';
+
 export class BeadField {
   constructor(capacity=12000){
-    this.cells=new Map();this.count=0;this.maxRadius=0;
+    this.cells=new Map();this.count=0;this.maxRadius=0;this.maxExtent=0;
     this.capacity=Math.min(24000,Math.max(0,Math.floor(Number.isFinite(capacity)?capacity:12000)));
   }
   add(bead){
     if(this.count>=this.capacity)return false;
     const key=`${Math.floor(bead.x/32)},${Math.floor(bead.y/32)}`;
     if(!this.cells.has(key))this.cells.set(key,[]);
-    this.cells.get(key).push(bead);this.count++;this.maxRadius=Math.max(this.maxRadius,bead.r);return true;
+    this.cells.get(key).push(bead);this.count++;this.maxRadius=Math.max(this.maxRadius,bead.r);
+    this.maxExtent=Math.max(this.maxExtent,bead.r*Math.max(1,bead.aspect??1));return true;
   }
   takeWind(width,height,wind,limit,rng=Math.random){
     const air=Math.min(1,Math.abs(Number.isFinite(wind)?wind:0));
@@ -71,6 +74,15 @@ export class BeadField {
       const keep=cell.filter(bead=>!selected.has(bead));this.count-=cell.length-keep.length;
       if(keep.length)this.cells.set(key,keep);else this.cells.delete(key);
     }
+  }
+  peekFinger(x0,y0,x1,y1,radius,predicate=()=>true){
+    const found=[],reach=radius+this.maxExtent;
+    for(let cy=Math.floor((Math.min(y0,y1)-reach)/32);cy<=Math.floor((Math.max(y0,y1)+reach)/32);cy++)
+    for(let cx=Math.floor((Math.min(x0,x1)-reach)/32);cx<=Math.floor((Math.max(x0,x1)+reach)/32);cx++){
+      const cell=this.cells.get(`${cx},${cy}`);if(!cell)continue;
+      for(const bead of cell)if(predicate(bead)&&touchesFinger(bead,x0,y0,x1,y1,radius,bead.r*Math.max(1,bead.aspect??1)))found.push(bead);
+    }
+    return found;
   }
   take(x,y,r,predicate){const found=this.peek(x,y,r,predicate);this.remove(found);return found;}
 }

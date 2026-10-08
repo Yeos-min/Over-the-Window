@@ -25,8 +25,10 @@
 }
 body{margin:0}
 #window{position:relative;width:100%;height:100svh;overflow:hidden;background:#bdcfd4}
-#glass{position:absolute;width:100%;height:100%;inset:0;touch-action:none;cursor:default;outline-offset:-4px}
+#glass{position:absolute;width:100%;height:100%;inset:0;touch-action:none;cursor:crosshair;outline-offset:-4px}
+#glass.wiping{cursor:url('./assets/finger-cursor.svg') 10 4,pointer}
 .vignette{position:absolute;inset:0;pointer-events:none}
+body[data-drawing=false] #glass{cursor:default}
 button,input{font:inherit;color:inherit}
 button{cursor:pointer}
 button:focus-visible,canvas:focus-visible,summary:focus-visible,.bezel:focus-visible,input:focus-visible{outline:2px solid var(--menu-ink);outline-offset:4px}
@@ -46,6 +48,11 @@ button:focus-visible,canvas:focus-visible,summary:focus-visible,.bezel:focus-vis
 .actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
 .actions button,.music-controls button,.background-retry{border:1px solid var(--menu-line);border-radius:8px;padding:8px 6px;background:var(--control-surface);font-size:12px;font-weight:500;min-height:44px;word-break:keep-all;transition:background .15s,border-color .15s}
 .background-retry{width:100%;margin-top:8px}
+.background-actions{display:grid;gap:6px;margin-top:10px}
+.background-actions button{border:1px solid var(--menu-line);border-radius:8px;padding:8px;background:var(--control-surface);font-size:12px;min-height:36px}
+.background-actions button[aria-pressed=true]{background:#e5ecea;border-color:#aeb1b5}
+#share-status{font-size:11px;line-height:1.5;color:var(--menu-muted);margin:8px 0 0}
+[hidden]{display:none!important}
 .actions button:hover:not(:disabled),.music-controls button:hover:not(:disabled){background:var(--menu-hover);border-color:#aeb1b5}
 .actions button[aria-pressed=true],.music-controls button[aria-pressed=true]{background:#f0f0ee;border-color:var(--menu-ink)}
 button:disabled{color:#9a9da1;cursor:default}
@@ -94,6 +101,7 @@ button:disabled{color:#9a9da1;cursor:default}
 .music-meters meter::-webkit-meter-optimum-value,.music-meters meter::-webkit-meter-suboptimum-value,.music-meters meter::-webkit-meter-even-less-good-value{background:var(--menu-ink)}
 .music-meters meter::-moz-meter-bar{background:var(--menu-ink)}
 #status{font-size:10px;line-height:1.5;color:var(--menu-muted);margin:8px 0 0;word-break:keep-all}
+.drawing-help{font-size:10px;line-height:1.5;color:var(--menu-muted);margin:8px 0 0;word-break:keep-all}
 .error #status{color:var(--menu-ink)}
 @supports ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
   .menu-drawer{--glass-surface:rgba(255,255,255,.6);--glass-edge:rgba(255,255,255,.5);--control-surface:rgba(255,255,255,.55);--menu-hover:rgba(255,255,255,.7);--menu-muted:#303236}

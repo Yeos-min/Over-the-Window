@@ -3,12 +3,13 @@ import createCanvas from './create-canvas.js';
 import {TrailMemory} from './trail-memory.js';
 import {BeadField} from './bead-field.js';
 import {glassBead,glassBeadTarget,seedGlassBeads,GLASS_BEAD_DENSITY,GLASS_BEAD_LIMIT} from './glass-beads.js';
-import {rotateNormals,deformDrop,dropGeometry} from './drop-orientation.js';
+import {rotateNormals,deformDrop,dropGeometry,dropTrailRadius} from './drop-orientation.js';
 import {MIN_RADIUS,MAX_RADIUS} from './codrops-physics.js';
 import {HeartfeltField,smooth} from './heartfelt-field.js';
 import {DEFAULT_MASS_SCALE,massScale,dropMass} from './drop-mass.js';
 import {TrailBeads} from './trail-beads.js';
 import {renderSize} from './render-size.js';
+import {rainInterval} from './rain-intensity.js';
 export class WaterMap {
   constructor(dropAlpha,dropColor,{surfaceDensity=1}={}){
     this.surfaceDensity=surfaceDensity;
@@ -73,14 +74,14 @@ export class WaterMap {
     this.maskRevision=(this.maskRevision||0)+1;this.seed();
   }
   seed(){
-    this.beads=new BeadField(GLASS_BEAD_LIMIT);this.counter=0;
+    this.beads=new BeadField(GLASS_BEAD_LIMIT);this.counter=0;this.beadArrival=rainInterval(Math.random);
     this.trailBeads=new TrailBeads();
     this.dirty=true;
     this.rctx.clearRect(0,0,this.width,this.height);
     this.dctx.clearRect(0,0,this.width,this.height);
-    const seeded=seedGlassBeads(this.width,this.height),density=this.surfaceDensity??1;
-    const count=Math.round(seeded.length*density);
-    for(let i=0;i<count;i++)this.drawBead(seeded[Math.floor(i/density)]);
+    const seeded=seedGlassBeads(this.width,this.height),density=(this.surfaceDensity??1)*(this.physics?.rainIntensity??1);
+    const count=Math.min(GLASS_BEAD_LIMIT,Math.round(seeded.length*density));
+    for(let i=0;i<count;i++)this.drawBead(seeded[Math.floor(i/Math.min(1,density))]??glassBead(this.width,this.height));
     this.field?.seed(this.width,this.height,this);
   }
   drawBead(bead){
@@ -148,37 +149,60 @@ export class WaterMap {
     this.eraseBeads(beads);return beads;
   }
   condense(dt){
+    const intensity=this.physics?.rainIntensity??1;
+    if(!intensity){this.counter=0;return;}
+    this.beadArrival??=rainInterval(Math.random);
     if(this.field){
-      this.counter=(this.counter||0)+dt*300*GLASS_BEAD_DENSITY*(this.width*this.height/1000000);
-      while(this.counter>=1&&this.beads.count<GLASS_BEAD_LIMIT){this.tinyDrop();this.counter--;}
+      this.counter=(this.counter||0)+dt*300*GLASS_BEAD_DENSITY*(this.width*this.height/1000000)*intensity;
+      while(this.counter>=this.beadArrival&&this.beads.count<GLASS_BEAD_LIMIT){this.tinyDrop();this.counter-=this.beadArrival;this.beadArrival=rainInterval(Math.random);}
       if(this.beads.count>=GLASS_BEAD_LIMIT)this.counter=0;
       return;
     }
     const target=Math.round(glassBeadTarget(this.width,this.height)*(this.surfaceDensity??1));
     if(this.beads.count>=target){this.counter=0;return;}
-    this.counter=(this.counter||0)+dt*300*GLASS_BEAD_DENSITY*(this.width*this.height/1000000)*(this.surfaceDensity??1);
-    while(this.counter>=1&&this.beads.count<target){this.tinyDrop();this.counter--;}
+    this.counter=(this.counter||0)+dt*300*GLASS_BEAD_DENSITY*(this.width*this.height/1000000)*(this.surfaceDensity??1)*intensity;
+    while(this.counter>=this.beadArrival&&this.beads.count<target){this.tinyDrop();this.counter-=this.beadArrival;this.beadArrival=rainInterval(Math.random);}
     if(this.beads.count>=target)this.counter=0;
   }
-  clear(){this.trailMemory.clear();this.fadeTime=0;this.mctx.clearRect(0,0,this.mask.width,this.mask.height);this.maskRevision=(this.maskRevision||0)+1;this.seed();}
+  clear(){this.trailMemory.clear();this.maskDirty=false;this.fadeTime=0;this.mctx.clearRect(0,0,this.mask.width,this.mask.height);this.maskRevision=(this.maskRevision||0)+1;this.seed();}
   decay(dt){
     this.trailMemory.advance(dt);
     this.fadeTime=(this.fadeTime||0)+dt;
     if(this.fadeTime<.05)return;
     this.fadeTime%=.05;
+    this.flushMask();
+  }
+  flushMask(){
+    this.maskDirty=false;
     if(this.maskPixels&&this.trailMemory.render(this.maskPixels.data)){
       this.mctx.putImageData(this.maskPixels,0,0);this.maskRevision=(this.maskRevision||0)+1;
     }
   }
+  wipe(x0,y0,x1,y1,radius){
+    const scaleX=this.mask.width/this.width,scaleY=this.mask.height/this.height;
+    this.trailMemory.stamp(x0*scaleX,y0*scaleY,x1*scaleX,y1*scaleY,radius*Math.min(scaleX,scaleY));
+    // Pointer bursts update the existing mask only once at the next paint.
+    this.maskDirty=true;
+    const physics=this.physics;
+    if(!physics)return null;
+    const beads=this.beads.peekFinger(x0,y0,x1,y1,radius,bead=>!this.field||this.field.visible(bead));
+    const drop=physics.gatherFinger(x0,y0,x1,y1,radius,beads);
+    if(drop){this.beads.remove(beads);this.eraseBeads(beads);this.dirty=true;}
+    return drop;
+  }
   trail(x0,y0,x1,y1,r,drop){
     const scaleX=this.mask.width/this.width,scaleY=this.mask.height/this.height;
-    this.trailMemory.stamp(x0*scaleX,y0*scaleY,x1*scaleX,y1*scaleY,r*.325*Math.min(scaleX,scaleY));
+    const width=drop?dropTrailRadius(drop,x1-x0,y1-y0):r;
+    const scale=Math.min(scaleX,scaleY),previous=drop?.trailRadius??width;
+    this.trailMemory.stamp(x0*scaleX,y0*scaleY,x1*scaleX,y1*scaleY,previous*scale,width*scale,!drop);
+    if(drop)drop.trailRadius=width;
     if(drop)for(const bead of this.trailBeads.sample(drop,x0,y0,x1,y1,this.height)){
       if(bead.x<0||bead.x>this.width||bead.y<0||bead.y>this.height||this.beads.count>=GLASS_BEAD_LIMIT)continue;
       if(!this.coalesce(bead))this.drawBead(bead);
     }
   }
   draw(drops){
+    if(this.maskDirty)this.flushMask();
     this.field.flush();
     if(this.dirty===false)return;this.dirty=false;this.revision=(this.revision||0)+1;
     const c=this.ctx;c.clearRect(0,0,this.width,this.height);

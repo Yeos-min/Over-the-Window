@@ -10,7 +10,7 @@
 </head>
 <body>
   <main id="window" aria-label="빗방울 인터랙션">
-    <canvas id="glass" tabindex="0" aria-label="빗방울 창문. 바람 베젤로 물길의 방향을 조절하세요."></canvas>
+    <canvas id="glass" tabindex="0" aria-label="빗방울 창문. 누르고 드래그하거나 손가락으로 문질러 김서림에 그림을 그려보세요."></canvas>
     <div class="vignette" aria-hidden="true"></div>
     <div id="background-media" hidden aria-hidden="true"></div>
     <div id="menu-drawer" class="menu-drawer" data-open="false">
@@ -22,6 +22,18 @@
       <section class="action-panel" aria-label="창문 조작">
       <div class="actions"><button id="pause" aria-pressed="false">잠시 멈추기</button><button id="reset">다시 맺히기</button><button id="reveal" aria-pressed="false">풍경 보기</button><button id="defog" disabled>김서림 없애기</button></div>
       <p id="status" role="status">유리 위에 빗방울을 맺는 중…</p>
+      <p class="drawing-help">창문을 누르고 드래그하거나 손가락으로 문질러 그림을 그려보세요. 잠시 뒤 다시 서려요.</p>
+      <div class="background-actions">
+        <button id="share-background" type="button" aria-pressed="false" disabled>화면 공유로 배경 바꾸기</button>
+        <button id="share-stop" type="button" hidden>화면 공유 종료</button>
+        <button id="drawing-mode" type="button" aria-pressed="true">그리기 모드 ON · G</button>
+      </div>
+      <p id="share-status" role="status">영상이 재생 중인 다른 탭이나 창을 선택하면 여기에 빗방울과 함께 보여요.</p>
+      <div class="mass-debug">
+        <label for="rain-intensity">비의 양 <output id="rain-intensity-value" for="rain-intensity">100%</output></label>
+        <input id="rain-intensity" type="range" min="0" max="200" step="5" value="100" aria-describedby="rain-intensity-help" disabled>
+        <p id="rain-intensity-help">0–200% · 0은 새 비만 중단 · 기존 물은 계속 흘러요</p>
+      </div>
       <button id="background-play" class="background-retry" type="button" hidden>배경 영상 재생</button>
       </section>
       <div class="knob-section">
@@ -69,7 +81,9 @@
         <div class="mass-debug">
           <label for="rain-sound-limit">동시 빗소리 수 · 디버그 <output id="rain-sound-limit-value" for="rain-sound-limit">12개</output></label>
           <input id="rain-sound-limit" type="range" min="1" max="128" step="1" value="12" aria-describedby="rain-sound-limit-help">
-          <p id="rain-sound-limit-help">1–128개 · 드문 음 우선 · 소리 꼬리는 짧게 교체 · 음량 자동 보정</p>
+          <p id="rain-sound-limit-help">1–128개 · 드문 음 우선 · 소리 꼬리는 짧게 교체</p>
+          <button id="rain-sound-auto-gain" class="background-retry" type="button" aria-pressed="true" aria-describedby="rain-sound-auto-gain-help">음량 자동 보정 ON</button>
+          <p id="rain-sound-auto-gain-help">12개를 넘게 겹치면 전체 빗소리를 줄여요.</p>
         </div>
         <div class="mass-debug">
           <label for="mass-scale">질량 배율 · 디버그 <output id="mass-scale-value" for="mass-scale">×0.10</output></label>
@@ -80,6 +94,11 @@
           <label for="path-noise">노이즈 강도 · 디버그 <output id="path-noise-value" for="path-noise">×1.0</output></label>
           <input id="path-noise" type="range" min="0" max="4" step="0.1" value="1" aria-describedby="path-noise-help" disabled>
           <p id="path-noise-help">0은 꺼짐 · 높이면 좌우 굴곡이 커져요</p>
+        </div>
+        <div class="mass-debug">
+          <label for="turn-drag">굴곡 감속 강도 · 디버그 <output id="turn-drag-value" for="turn-drag">×2.0</output></label>
+          <input id="turn-drag" type="range" min="0" max="4" step="0.1" value="2" aria-describedby="turn-drag-help" disabled>
+          <p id="turn-drag-help">꺾일수록 감속 · 곧게 흐르면 저항 회복 · 0은 이전 방식</p>
         </div>
         <button id="music-toggle" class="music-toggle" aria-expanded="false" aria-controls="music-content">음악에 반응하기</button>
         <p id="performance-status" class="performance-status">성능 측정 중…</p>

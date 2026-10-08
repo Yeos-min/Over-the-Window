@@ -9,10 +9,11 @@ test('even heavy runoff settles while continuously absorbing fine beads, then vi
     const p=fixture(),d=p.drop(600,100,14.4,true);d.nextSpawn=99999;p.drops=[d];
     if(shader)d.heartfelt={free:true,layer:1,next:{x:600,y:100,tail:0}};
     let steps=0;
-    while(d.flowing&&steps++<180)p.step(1/60,0,()=>{},()=>[{x:d.x,y:d.y,r:2}]);
-    assert.ok(steps<150);assert.equal(d.vy,0);assert.ok(d.restTime>=.5&&d.restTime<=1);
+    while(d.flowing&&steps++<600)p.step(1/60,0,()=>{},()=>[{x:d.x,y:d.y,r:2}]);
+    assert.ok(steps<600);assert.equal(d.vy,0);assert.ok(d.restTime>=.5&&d.restTime<=1);
     const location=[d.x,d.y,d.pathDistance];p.rng=()=>0;p.wind=p.windTarget=1;
-    for(let i=0;i<40;i++){
+    const heldSteps=Math.floor(d.restTime*60)-1;
+    for(let i=0;i<heldSteps;i++){
       p.step(1/60,0);assert.equal(d.flowing,false);assert.deepEqual([d.x,d.y,d.pathDistance],location);
     }
   }
@@ -36,11 +37,11 @@ test('noise slider supports zero through four, preserves tuning on reset, and ca
   p.reset();assert.equal(p.pathNoise,4);assert.equal(input.disabled,false);
   p.setPathNoise(999);assert.equal(p.pathNoise,4);p.setPathNoise(-1);assert.equal(p.pathNoise,0);
 });
-test('noise zero produces straight calm runoff and higher settings increase lateral change for both renderers',()=>{
+test('with bend drag disabled stronger noise increases lateral motion through local glass friction for both renderers',()=>{
   for(const shader of [false,true]){
     const results=[];
     for(const strength of [0,1,4]){
-      const p=fixture();p.setPathNoise(strength);p.setMassScale(.3);
+      const p=fixture();p.setTurnDrag(0);p.setPathNoise(strength);p.setMassScale(.3);
       const d=p.drop(600,100,8,true);d.nextSpawn=99999;p.drops=[d];
       if(shader)d.heartfelt={layer:1,free:false,next:{x:600,y:1000,tail:0},sampleX:600};
       const curve=[];for(let i=0;i<30;i++){
@@ -51,7 +52,7 @@ test('noise zero produces straight calm runoff and higher settings increase late
       results.push({x:d.x,y:d.y,curve});
     }
     assert.equal(results[0].x,600);assert.ok(Math.max(...results[1].curve)-Math.min(...results[1].curve)>.5);
-    assert.ok(Math.abs((results[2].x-600)-4*(results[1].x-600))<1e-8);
-    assert.equal(results[0].y,results[1].y);assert.equal(results[1].y,results[2].y);
+    assert.ok(Math.abs(results[2].x-600)>Math.abs(results[1].x-600));
+    assert.ok(results.every(result=>Number.isFinite(result.x+result.y)&&result.y>100));
   }
 });

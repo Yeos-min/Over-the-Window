@@ -6,6 +6,7 @@ class RainAudioProcessor extends AudioWorkletProcessor{
     this.port.onmessage=({data})=>{
       if(data.type==='bank')this.mixer.bank(data.buffers,data.gains);
       else if(data.type==='limit')this.mixer.setLimit(data.value);
+      else if(data.type==='autoGain')this.mixer.setAutoGain(data.value);
       else if(data.type==='clear')this.mixer.clear();
       else if(data.type==='births')for(const id of data.ids)this.mixer.birth(id);
     };

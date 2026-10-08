@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 test('live app disconnects mouse steering while keeping parallax and wind',()=>{
   const source=readFileSync(new URL('../src/index.js',import.meta.url),'utf8');
   assert.doesNotMatch(source,/MouseInput|input\.update|input\.clear/);
-  assert.match(source,/physics\.step\(1\/60,0,/);
+  assert.match(source,/physics\.step\([^,]+,0,/);
   assert.match(source,/parallax\.move\(/);
   assert.match(source,/initWindControls\(/);
   assert.match(source,/physics\.windTarget=value;/);
